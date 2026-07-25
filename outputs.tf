@@ -10,5 +10,8 @@ output "key_ring_name" {
 
 output "crypto_key_ids" {
   description = "Identifiers of the crypto keys created in the key ring."
-  value       = { for k, key in google_kms_crypto_key.this : k => key.id }
+  value = merge(
+    { for k, key in google_kms_crypto_key.this : k => key.id },
+    { for k, key in google_kms_crypto_key.ephemeral : k => key.id },
+  )
 }

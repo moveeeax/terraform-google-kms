@@ -8,7 +8,7 @@ Cloud KMS key ring (`google_kms_key_ring`) and a set of crypto keys
 
 ```hcl
 module "kms" {
-  source = "github.com/moveeeax/terraform-google-kms"
+  source = "github.com/moveeeax/terraform-google-kms?ref=v1.0.0"
 
   project_id = var.project_id
   name       = "prod-keyring"

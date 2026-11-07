@@ -25,9 +25,11 @@ module "kms" {
   # `terraform destroy` on this example fails by design. See the "Destruction
   # semantics" section of the module README before tearing it down.
   keys = {
-    # Symmetric encryption key, rotated every 90 days.
+    # Symmetric encryption key, rotated every 90 days. Only the listed
+    # members may use it; the grant is on this key, not on the project.
     "app-key" = {
-      rotation_period = "7776000s"
+      rotation_period      = "7776000s"
+      encrypter_decrypters = var.app_key_users
     }
 
     # Asymmetric signing key. Signing keys cannot be rotated automatically, so
@@ -42,6 +44,12 @@ module "kms" {
 variable "project_id" {
   description = "Project ID to deploy the example key ring into."
   type        = string
+}
+
+variable "app_key_users" {
+  description = "Members allowed to encrypt and decrypt with app-key, e.g. [\"serviceAccount:service-123@gs-project-accounts.iam.gserviceaccount.com\"]."
+  type        = list(string)
+  default     = []
 }
 
 variable "region" {

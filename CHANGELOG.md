@@ -6,6 +6,15 @@ All notable changes to this module are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Per-key usage grants: `encrypters`, `decrypters` and `encrypter_decrypters`
+  attributes on `keys` create `google_kms_crypto_key_iam_member` grants of
+  `roles/cloudkms.cryptoKeyEncrypter`, `roles/cloudkms.cryptoKeyDecrypter` and
+  `roles/cloudkms.cryptoKeyEncrypterDecrypter` on that key only. Roles are fixed
+  in the module, so it cannot grant key administration. Members must carry a
+  type prefix, which also rejects `allUsers` and `allAuthenticatedUsers`.
+
 ### Changed
 
 - CI: bump actions to their current majors, pin tool versions, and restrict the

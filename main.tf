@@ -24,6 +24,33 @@ locals {
       )
     }
   }
+
+  # Per-key usage grants. The roles are fixed here rather than taken from the
+  # caller so that this module can only ever hand out use of a key, never
+  # administration of it (separation of duties).
+  key_roles = {
+    encrypters           = "roles/cloudkms.cryptoKeyEncrypter"
+    decrypters           = "roles/cloudkms.cryptoKeyDecrypter"
+    encrypter_decrypters = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  }
+
+  key_iam_members = merge([
+    for name, key in var.keys : merge([
+      for attr, role in local.key_roles : {
+        for member in distinct(key[attr]) : "${name}/${role}/${member}" => {
+          key    = name
+          role   = role
+          member = member
+        }
+      }
+    ]...)
+  ]...)
+
+  # Whichever of the two crypto key resources holds a key, its id lives here.
+  crypto_key_ids = merge(
+    { for k, key in google_kms_crypto_key.this : k => key.id },
+    { for k, key in google_kms_crypto_key.ephemeral : k => key.id },
+  )
 }
 
 resource "google_kms_key_ring" "this" {
@@ -77,4 +104,12 @@ resource "google_kms_crypto_key" "ephemeral" {
   lifecycle {
     prevent_destroy = false
   }
+}
+
+resource "google_kms_crypto_key_iam_member" "this" {
+  for_each = local.key_iam_members
+
+  crypto_key_id = local.crypto_key_ids[each.value.key]
+  role          = each.value.role
+  member        = each.value.member
 }

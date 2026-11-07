@@ -26,6 +26,13 @@ variable "keys" {
     * `destroy_scheduled_duration` - How long key versions sit in
       DESTROY_SCHEDULED before being permanently destroyed. Immutable, and the
       Cloud KMS default of 30 days applies when it is unset.
+    * `encrypters`, `decrypters`, `encrypter_decrypters` - IAM members granted
+      roles/cloudkms.cryptoKeyEncrypter, roles/cloudkms.cryptoKeyDecrypter and
+      roles/cloudkms.cryptoKeyEncrypterDecrypter on this key only, e.g.
+      "serviceAccount:service-123@gs-project-accounts.iam.gserviceaccount.com".
+      Grants are additive (google_kms_crypto_key_iam_member). The module never
+      grants an administrative role, so key users and key administrators stay
+      separate. Members must be known at plan time.
   EOT
 
   type = map(object({
@@ -34,6 +41,9 @@ variable "keys" {
     algorithm                  = optional(string, "GOOGLE_SYMMETRIC_ENCRYPTION")
     protection_level           = optional(string, "SOFTWARE")
     destroy_scheduled_duration = optional(string)
+    encrypters                 = optional(list(string), [])
+    decrypters                 = optional(list(string), [])
+    encrypter_decrypters       = optional(list(string), [])
   }))
   default = {}
 
@@ -105,6 +115,19 @@ variable "keys" {
       )
     ])
     error_message = "destroy_scheduled_duration must be a duration in seconds such as \"2592000s\", and at least 86400s (24 hours)."
+  }
+
+  # Members are passed to the IAM API verbatim; a bare email is only rejected
+  # at apply time. Requiring a type prefix also keeps allUsers and
+  # allAuthenticatedUsers off a key.
+  validation {
+    condition = alltrue(flatten([
+      for name, key in var.keys : [
+        for member in concat(key.encrypters, key.decrypters, key.encrypter_decrypters) :
+        can(regex("^[a-zA-Z]+:.+$", member))
+      ]
+    ]))
+    error_message = "Each member in encrypters, decrypters and encrypter_decrypters must carry a type prefix, e.g. \"serviceAccount:name@project.iam.gserviceaccount.com\", \"group:team@example.com\" or \"user:alice@example.com\". allUsers and allAuthenticatedUsers are not accepted."
   }
 }
 

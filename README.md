@@ -15,9 +15,11 @@ module "kms" {
   location   = "us-central1"
 
   keys = {
-    # Symmetric encryption key, rotated every 90 days (the default).
+    # Symmetric encryption key, rotated every 90 days (the default). The
+    # Cloud Storage service agent may use it, and nothing else.
     "database" = {
-      rotation_period = "7776000s"
+      rotation_period      = "7776000s"
+      encrypter_decrypters = ["serviceAccount:service-${var.project_number}@gs-project-accounts.iam.gserviceaccount.com"]
     }
 
     # HSM-backed signing key. Signing keys cannot be rotated automatically.
@@ -31,6 +33,29 @@ module "kms" {
 ```
 
 A runnable example lives in [`examples/basic`](examples/basic).
+
+## Key usage grants
+
+CMEK consumers such as the Cloud Storage, BigQuery or Cloud SQL service agents
+need `roles/cloudkms.cryptoKeyEncrypterDecrypter` on the key they use. Granting
+it on the project lets them use every key in it, so list them per key instead:
+
+| `keys` attribute       | Role granted on that key                     |
+|------------------------|----------------------------------------------|
+| `encrypters`           | `roles/cloudkms.cryptoKeyEncrypter`          |
+| `decrypters`           | `roles/cloudkms.cryptoKeyDecrypter`          |
+| `encrypter_decrypters` | `roles/cloudkms.cryptoKeyEncrypterDecrypter` |
+
+Grants are additive `google_kms_crypto_key_iam_member` resources, so members
+granted outside this module are left alone. The module only ever grants these
+usage roles; key administration (`roles/cloudkms.admin`) is out of its reach on
+purpose, so whoever administers keys is managed elsewhere. Members need a type
+prefix (`serviceAccount:`, `group:`, `user:`, ...), and `allUsers` /
+`allAuthenticatedUsers` are rejected.
+
+Members end up in `for_each` keys, so they must be known at plan time. A
+service agent email built from a project number you already know is fine; one
+read from a resource created in the same apply is not.
 
 ## Destruction semantics
 
@@ -86,6 +111,9 @@ OpenTofu >= 1.7 for provider mocking. The module itself still works on 1.5.
 | `algorithm`                  | Algorithm for versions of the key. Must match `purpose`.                                                                          | `GOOGLE_SYMMETRIC_ENCRYPTION`                     |
 | `protection_level`           | `SOFTWARE` or `HSM`.                                                                                                              | `SOFTWARE`                                        |
 | `destroy_scheduled_duration` | Time versions spend in `DESTROY_SCHEDULED` before being destroyed, at least `86400s`.                                             | unset (Cloud KMS default: 30 days)                |
+| `encrypters`                 | Members granted `roles/cloudkms.cryptoKeyEncrypter` on this key.                                                                  | `[]`                                              |
+| `decrypters`                 | Members granted `roles/cloudkms.cryptoKeyDecrypter` on this key.                                                                  | `[]`                                              |
+| `encrypter_decrypters`       | Members granted `roles/cloudkms.cryptoKeyEncrypterDecrypter` on this key.                                                         | `[]`                                              |
 
 `purpose` and `algorithm` are validated against each other, so a mismatch such
 as `ASYMMETRIC_SIGN` with `GOOGLE_SYMMETRIC_ENCRYPTION` is rejected during plan
